@@ -24,9 +24,7 @@ class FieldFeature(BaseModel):
     properties: dict
 
 
-# ---------------------------------------------------------------------------
 # Crop stage library (GDD-based, UK-focused)
-# ---------------------------------------------------------------------------
 
 CROP_STAGES = {
     "winter_wheat": {
@@ -156,9 +154,7 @@ def _centroid(coords: list) -> tuple[float, float]:
     return sum(lats) / len(lats), sum(lngs) / len(lngs)
 
 
-# ---------------------------------------------------------------------------
 # Weather: Open-Meteo (free, no API key required)
-# ---------------------------------------------------------------------------
 
 def _fetch_weather(lat: float, lng: float, sowing_date: Optional[str] = None) -> dict:
     """Fetch 7-day history + 3-day forecast and historical GDD since sowing."""
@@ -240,9 +236,7 @@ def _fetch_gdd_since_sowing(lat: float, lng: float, sowing_date: str) -> tuple[f
     return round(sum(daily_gdd), 1), daily_gdd
 
 
-# ---------------------------------------------------------------------------
 # Soil: SoilGrids REST API (free, no API key required)
-# ---------------------------------------------------------------------------
 
 def _fetch_soil(lat: float, lng: float) -> Optional[dict]:
     """Return soil properties from SoilGrids. Returns None on any failure."""
@@ -282,9 +276,7 @@ def _fetch_soil(lat: float, lng: float) -> Optional[dict]:
         return None
 
 
-# ---------------------------------------------------------------------------
 # Growth stage lookup
-# ---------------------------------------------------------------------------
 
 def _resolve_stage(crop_type: str, gdd: float) -> Optional[dict]:
     """Return the current growth stage dict for a crop given accumulated GDD."""
@@ -322,9 +314,7 @@ def _overall_progress(crop_type: str, gdd: float) -> float:
     return min(1.0, gdd / total) if total > 0 else 0.0
 
 
-# ---------------------------------------------------------------------------
 # Rule engine
-# ---------------------------------------------------------------------------
 
 def _run_rules(
     crop_type: str,
@@ -443,9 +433,7 @@ def _run_rules(
     return signals
 
 
-# ---------------------------------------------------------------------------
 # Endpoint
-# ---------------------------------------------------------------------------
 
 @router.post("/analyse")
 async def analyse_context(

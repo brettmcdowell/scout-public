@@ -29,9 +29,7 @@ class FieldFeature(BaseModel):
     properties: dict
 
 
-# ---------------------------------------------------------------------------
 # Polygon masking (shared by both data paths)
-# ---------------------------------------------------------------------------
 
 def _poly_mask(ring_coords: list, w: int, h: int,
                west: float, south: float, east: float, north: float) -> np.ndarray:
@@ -48,9 +46,7 @@ def _poly_mask(ring_coords: list, w: int, h: int,
     return np.array(img) > 0
 
 
-# ---------------------------------------------------------------------------
 # Path A — Sentinel-2 NDVI via Element 84 Earth Search STAC
-# ---------------------------------------------------------------------------
 
 STAC_SEARCH_URL = "https://earth-search.aws.element84.com/v1/search"
 
@@ -59,15 +55,9 @@ def _fetch_sentinel2(min_lng: float, min_lat: float, max_lng: float, max_lat: fl
                      target_date: Optional[str] = None):
     """Fetch real NDVI and NDRE arrays from Sentinel-2 L2A.
 
-    Searches Element 84 Earth Search, iterating candidate scenes and using the
-    SCL (Scene Classification Layer) to find one where the field pixels are
-    actually cloud-free (scene-level cloud% is unreliable for small fields).
-
-    Applies the S2 L2A processing-baseline-4 offset correction:
-        physical_reflectance = raw * 0.0001 - 0.1
-
-    Returns: (ndvi, ndre, west, south, east, north)  — all arrays in WGS84.
-    Raises if no suitable imagery is found or COG read fails.
+    Iterates candidate scenes and checks the SCL (Scene Classification Layer)
+    to find one where the field pixels are actually cloud-free, since
+    scene-level cloud% is unreliable for small fields.
     """
     import requests as _requests
     import rasterio
@@ -83,7 +73,7 @@ def _fetch_sentinel2(min_lng: float, min_lat: float, max_lng: float, max_lat: fl
     buf = 0.0002   # ~20 m ≈ 2 S2 pixels; enough for bilinear reproject fringe
     bbox_4326 = (min_lng - buf, min_lat - buf, max_lng + buf, max_lat + buf)
 
-    # ── 1. Search STAC ──────────────────────────────────────────────────────
+    # 1. Search STAC
     if target_date:
         dt = datetime.strptime(target_date, '%Y-%m-%d')
         start = (dt - timedelta(days=4)).strftime('%Y-%m-%dT00:00:00Z')
@@ -127,7 +117,7 @@ def _fetch_sentinel2(min_lng: float, min_lat: float, max_lng: float, max_lat: fl
     #   4 = vegetation, 5 = bare soil, 6 = water, 7 = unclassified
     GOOD_SCL = [3, 4, 5, 6, 7]
 
-    # ── 2. Pick first scene where field pixels are actually clear (SCL check) ─
+    # 2. Pick first scene where field pixels are actually clear (SCL check)
     def _read_window(href, shape=None):
         """Read a COG window; returns (float32 array, transform, crs, bounds)."""
         with Env(GDAL_HTTP_MERGE_CONSECUTIVE_RANGES="YES", CPL_VSIL_CURL_ALLOWED_EXTENSIONS=".tif"):
@@ -182,7 +172,7 @@ def _fetch_sentinel2(min_lng: float, min_lat: float, max_lng: float, max_lat: fl
     if not (b04_href and b08_href):
         raise ValueError("Required bands not available in STAC item")
 
-    # ── 3. Read bands at native resolution ────────────────────────────────────
+    # 3. Read bands at native resolution
     b04_raw, b04_transform, src_crs, native_bounds = _read_window(b04_href)
     mh, mw = b04_raw.shape
     b08_raw, _, _, _ = _read_window(b08_href, shape=(mh, mw))
@@ -270,7 +260,7 @@ def _fetch_sentinel2(min_lng: float, min_lat: float, max_lng: float, max_lat: fl
                                np.clip((b08 - b11) / ndmi_denom, -1.0, 1.0),
                                np.nan).astype(np.float32)
 
-    # ── 4. Warp to WGS84 ────────────────────────────────────────────────────
+    # 4. Warp to WGS84
     def _warp_to_wgs84(arr, src_transform, src_crs):
         dst_transform, dst_w, dst_h = calculate_default_transform(
             src_crs, wgs84, mw, mh, *native_bounds
@@ -295,7 +285,7 @@ def _fetch_sentinel2(min_lng: float, min_lat: float, max_lng: float, max_lat: fl
     ndwi_wgs84 = _warp_to_wgs84(ndwi_native, b04_transform, src_crs)[0] if ndwi_native is not None else None
     ndmi_wgs84 = _warp_to_wgs84(ndmi_native, b04_transform, src_crs)[0] if ndmi_native is not None else None
 
-    # ── 5. True-colour RGB from visual/TCI band ──────────────────────────────
+    # 5. True-colour RGB from visual/TCI band
     rgb_wgs84 = None
     if vis_href:
         try:
@@ -328,9 +318,7 @@ def _fetch_sentinel2(min_lng: float, min_lat: float, max_lng: float, max_lat: fl
     return ndvi_wgs84, ndre_wgs84, ndmi_wgs84, evi_wgs84, ndwi_wgs84, rgb_wgs84, west, south, east, north, actual_date
 
 
-# ---------------------------------------------------------------------------
 # Path B — VARI / ExGI from Esri RGB tiles (fallback)
-# ---------------------------------------------------------------------------
 
 ESRI_TILE_URL = (
     "https://server.arcgisonline.com/ArcGIS/rest/services/"
@@ -383,9 +371,7 @@ def _exgi(rgb: np.ndarray) -> np.ndarray:
     return np.clip((2 * G - R - B) / 255.0, -1.0, 1.0)
 
 
-# ---------------------------------------------------------------------------
 # Display mapping and colour rendering (shared)
-# ---------------------------------------------------------------------------
 
 def _to_display(raw: np.ndarray, lo: float, hi: float) -> np.ndarray:
     return np.clip((raw - lo) / (hi - lo), 0.0, 1.0)
@@ -484,9 +470,7 @@ def _to_b64_png_rgb(rgb: np.ndarray) -> str:
     return f"data:image/png;base64,{base64.b64encode(buf.getvalue()).decode()}"
 
 
-# ---------------------------------------------------------------------------
 # Stats, zones, and signals derived from the display values
-# ---------------------------------------------------------------------------
 
 def _compute_stats(display: np.ndarray, mask: np.ndarray, field_ha: float) -> dict:
     vals = display[mask]
@@ -613,9 +597,7 @@ def _compute_signals(zones: list, stats: dict) -> list:
     return sigs
 
 
-# ---------------------------------------------------------------------------
 # Fallback (used when both satellite paths fail)
-# ---------------------------------------------------------------------------
 
 def _fallback_overlay() -> str:
     rng = np.random.default_rng(42)
@@ -652,9 +634,7 @@ FALLBACK_SIGNALS = [
 ]
 
 
-# ---------------------------------------------------------------------------
 # Endpoints
-# ---------------------------------------------------------------------------
 
 @router.post("/scenes")
 async def list_scenes(field: FieldFeature):
@@ -706,7 +686,7 @@ async def analyse_field(field: FieldFeature, scene_date: Optional[str] = Query(N
     west, south, east, north = min_lng, min_lat, max_lng, max_lat
     actual_scene_date = scene_date
 
-    # ── Path A: Esri RGB tiles → high-res VARI/ExGI overlay ────────────────
+    # Path A: Esri RGB tiles → high-res VARI/ExGI overlay
     # Esri tiles are ~1m resolution vs Sentinel-2's 10m, giving 100× more
     # pixels over a small field.  Always compute VARI/ExGI from these for the
     # dedicated VARI layer and as a fallback for stats.
@@ -726,7 +706,7 @@ async def analyse_field(field: FieldFeature, scene_date: Optional[str] = Query(N
     except Exception:
         pass
 
-    # ── Path B: Sentinel-2 → NDVI, NDRE, NDMI, EVI, NDWI ─────────────────
+    # Path B: Sentinel-2 → NDVI, NDRE, NDMI, EVI, NDWI
     # S2 is 10m resolution; used for all spectral overlay layers and for the
     # comparison-panel statistics.  Skipped in quick mode (overview page).
     s2_ndvi_display = None
@@ -752,7 +732,7 @@ async def analyse_field(field: FieldFeature, scene_date: Optional[str] = Query(N
         except Exception:
             actual_scene_date = None
 
-    # ── Path C: total fallback ─────────────────────────────────────────────
+    # Path C: total fallback
     if vari_display is None:
         bounds = [[min_lat, min_lng], [max_lat, max_lng]]
         fb_stats = dict(FALLBACK_STATS)
@@ -774,14 +754,14 @@ async def analyse_field(field: FieldFeature, scene_date: Optional[str] = Query(N
             "vegetation_layer": "unavailable",
         }
 
-    # ── Render VARI overlay (Esri, always available) ───────────────────────
+    # Render VARI overlay (Esri, always available)
     h, w = vari_display.shape
     esri_mask = _poly_mask(coords, w, h, west, south, east, north)
     vari_overlay = _to_b64_png(_colorize(vari_display, esri_mask, NDVI_RAMP))
     vari_vals = vari_display[esri_mask]
     vari_score = int(round(float(np.nanmean(vari_vals)) * 100)) if len(vari_vals) > 0 else 50
 
-    # ── Render S2 overlays (NDVI, NDRE, NDMI, EVI, NDWI) ──────────────────
+    # Render S2 overlays (NDVI, NDRE, NDMI, EVI, NDWI)
     ndvi_overlay = None
     ndre_overlay = None
     ndmi_overlay = None
@@ -811,7 +791,7 @@ async def analyse_field(field: FieldFeature, scene_date: Optional[str] = Query(N
         m = float(np.nanmean(vals)) if len(vals) > 0 else float('nan')
         return None if np.isnan(m) else int(round(m * 100))
 
-    # ── Stats: S2 when available (accurate), else Esri VARI (fallback) ─────
+    # Stats: S2 when available (accurate), else Esri VARI (fallback)
     if s2_mask is not None and s2_ndvi_display is not None:
         stats = _compute_stats(s2_ndvi_display, s2_mask, field_ha)
         s2_ndre_vals = s2_ndre_display[s2_mask] if s2_ndre_display is not None else np.array([])
