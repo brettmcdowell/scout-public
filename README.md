@@ -1,6 +1,11 @@
 # TerraVision Scout
 
-Crop health and field intelligence platform.
+AI-powered crop health platform — detects field boundaries from satellite imagery, tracks NDVI/NDRE vegetation indices, and surfaces prioritised action recommendations for farmers.
+
+## Prerequisites
+
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) (Python package/venv manager)
+- Node.js 20+ and npm
 
 ## Quick Start
 
