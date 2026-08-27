@@ -801,6 +801,12 @@ export function IntelligencePage() {
 
 
 
+  // Initial load: both cards show spinner until scenes have arrived and a date is selected.
+  // After that, each card tracks its own loading state independently.
+  const initialLoading = selectedField !== null && (isFetchingScenes || scanA === null)
+  const analysingA = initialLoading || isAnalysingA
+  const analysingB = initialLoading || isAnalysingB
+
   const statusLabel = analysisA
     ? (analysisA.stats.cropHealthScore >= 65 ? 'Good'
        : analysisA.stats.cropHealthScore >= 50 ? 'Watch'
@@ -812,12 +818,6 @@ export function IntelligencePage() {
     statusLabel === 'Watch' ? 'text-yellow-600' :
     statusLabel === 'Needs Attention' ? 'text-red-600' :
     'text-gray-400'
-
-  // Initial load: both cards show spinner until scenes have arrived and a date is selected.
-  // After that, each card tracks its own loading state independently.
-  const initialLoading = selectedField !== null && (isFetchingScenes || scanA === null)
-  const analysingA = initialLoading || isAnalysingA
-  const analysingB = initialLoading || isAnalysingB
 
   return (
     <div className="h-full flex flex-col overflow-hidden px-5 pt-4 pb-4 gap-3">
