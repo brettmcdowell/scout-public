@@ -1,0 +1,8 @@
+client/node_modules/
+client/dist/
+server/.venv/
+__pycache__
+server/data/
+*.pt
+*.DS_Store
+.claude/
